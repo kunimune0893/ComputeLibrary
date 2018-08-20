@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+#include "arm_compute/graph/Logger.h"
 #include "arm_compute/graph/nodes/ConvolutionLayerNode.h"
 
 #include "arm_compute/core/Utils.h"
@@ -75,8 +76,10 @@ TensorDescriptor ConvolutionLayerNode::compute_output_descriptor(const TensorDes
     const unsigned int input_height  = get_dimension_size(input_descriptor, DataLayoutDimension::HEIGHT);
     const unsigned int kernel_width  = get_dimension_size(weights_descriptor, DataLayoutDimension::WIDTH);
     const unsigned int kernel_height = get_dimension_size(weights_descriptor, DataLayoutDimension::HEIGHT);
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "ConvolutionLayerNode::compute_output_descriptor(): input_width=" << input_width << ", input_height=" << input_height << ", kernel_width=" << kernel_width << ", kernel_height=" << kernel_height );
 
     std::tie(output_width, output_height) = scaled_dimensions(input_width, input_height, kernel_width, kernel_height, info);
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "ConvolutionLayerNode::compute_output_descriptor(): output_width=" << output_width << ", output_height=" << output_height << ", weights_descriptor.shape[3]=" << weights_descriptor.shape[3] );
 
     TensorDescriptor output_descriptor = input_descriptor;
     output_descriptor.shape.set(get_dimension_idx(output_descriptor, DataLayoutDimension::WIDTH), output_width);
@@ -90,11 +93,13 @@ bool ConvolutionLayerNode::forward_descriptors()
 {
     if((input_id(0) != NullTensorID) && (input_id(1) != NullTensorID) && (output_id(0) != NullTensorID))
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "forward_descriptors(): return true" );
         Tensor *dst = output(0);
         ARM_COMPUTE_ERROR_ON(dst == nullptr);
         dst->desc() = configure_output(0);
         return true;
     }
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "forward_descriptors(): return false" );
     return false;
 }
 
@@ -106,6 +111,7 @@ TensorDescriptor ConvolutionLayerNode::configure_output(size_t idx) const
 
     ARM_COMPUTE_ERROR_ON(src == nullptr || weights == nullptr);
 
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "ConvolutionLayerNode::configure_output()" );
     TensorDescriptor output_info = compute_output_descriptor(src->desc(), weights->desc(), _info);
     if(!_out_quant_info.empty())
     {

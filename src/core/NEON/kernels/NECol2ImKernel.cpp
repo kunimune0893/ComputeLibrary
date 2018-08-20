@@ -152,4 +152,10 @@ void NECol2ImKernel::run(const Window &window, const ThreadInfo &info)
     ARM_COMPUTE_ERROR_ON_INVALID_SUBWINDOW(INEKernel::window(), window);
 
     (this->*_func)(window);
+    
+    if( _convolved_dims.width == 8 && _convolved_dims.height == 8 ){
+        //std::cout << "before dump" << std::endl;
+        //_output->print( std::cout );
+        //std::cout << "after dump" << std::endl;
+    }
 }

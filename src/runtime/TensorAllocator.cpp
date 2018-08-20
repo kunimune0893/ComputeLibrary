@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+#include "arm_compute/graph/Logger.h"
 #include "arm_compute/runtime/TensorAllocator.h"
 
 #include "arm_compute/core/Coordinates.h"
@@ -138,10 +139,12 @@ void TensorAllocator::allocate()
 
     if(_associated_memory_group == nullptr)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "TensorAllocator::allocate() nullptr: " << info().total_size() );
         _memory = Memory(std::make_shared<MemoryRegion>(info().total_size()));
     }
     else
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "TensorAllocator::allocate(): " << info().total_size() );
         _associated_memory_group->finalize_memory(_owner, reinterpret_cast<void **>(_memory.region()->handle()), info().total_size());
         _memory.region()->set_size(info().total_size());
     }

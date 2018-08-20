@@ -24,6 +24,7 @@
 
 #include "utils/GraphUtils.h"
 
+#include "arm_compute/graph/Logger.h"
 #include "arm_compute/core/Helpers.h"
 #include "arm_compute/core/Types.h"
 #include "arm_compute/runtime/SubTensor.h"
@@ -138,7 +139,10 @@ NumPyAccessor::NumPyAccessor(std::string npy_path, TensorShape shape, DataType d
     _npy_tensor.allocator()->init(info);
     _npy_tensor.allocator()->allocate();
 
+    _output_stream << "before" << std::endl;
     loader.access_tensor(_npy_tensor);
+    _output_stream << "after" << std::endl;
+    _npy_tensor.print( _output_stream );
 }
 
 template <typename T>
@@ -148,7 +152,8 @@ void NumPyAccessor::access_numpy_tensor(ITensor &tensor)
     int       num_mismatches        = utils::compare_tensor<T>(tensor, _npy_tensor);
     float     percentage_mismatches = static_cast<float>(num_mismatches) / num_elements;
 
-    _output_stream << "Results: " << 100.f - (percentage_mismatches * 100) << " % matches with the provided output[" << _filename << "]." << std::endl;
+    _output_stream << "Results: " << 100.f - (percentage_mismatches * 100) << " % matches with the provided output[" << _filename << "]." << " num_elements=" << num_elements << " num_mismatches=" << num_mismatches << std::endl;
+    tensor.print( _output_stream );
 }
 
 bool NumPyAccessor::access_tensor(ITensor &tensor)
@@ -400,6 +405,7 @@ bool NumPyBinLoader::access_tensor(ITensor &tensor)
     std::vector<unsigned long> shape;
 
     // Open file
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "filename=" << _filename.c_str() );
     std::ifstream stream(_filename, std::ios::in | std::ios::binary);
     ARM_COMPUTE_ERROR_ON_MSG(!stream.good(), "Failed to load binary data");
     std::string header = npy::read_header(stream);
@@ -413,6 +419,11 @@ bool NumPyBinLoader::access_tensor(ITensor &tensor)
     std::string expect_typestr = arm_compute::utils::get_typestring(tensor.info()->data_type());
     ARM_COMPUTE_ERROR_ON_MSG(typestr != expect_typestr, "Typestrings mismatch");
 
+    for(size_t i = 0; i < shape.size(); ++i)
+    {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "tensor_shape[" << i << "]=" << tensor_shape[i] << ", shape[" << i << "]=" << shape[i] );
+    }
+    
     // Reverse vector in case of non fortran order
     if(!fortran_order)
     {
@@ -420,6 +431,7 @@ bool NumPyBinLoader::access_tensor(ITensor &tensor)
     }
 
     // Correct dimensions (Needs to match TensorShape dimension corrections)
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "shape.size()=" << shape.size() << ", tensor_shape.num_dimensions()=" << tensor_shape.num_dimensions() );
     if(shape.size() != tensor_shape.num_dimensions())
     {
         for(int i = static_cast<int>(shape.size()) - 1; i > 0; --i)
@@ -437,6 +449,11 @@ bool NumPyBinLoader::access_tensor(ITensor &tensor)
 
     bool are_layouts_different = (_file_layout != tensor.info()->data_layout());
 
+    for(size_t i = 0; i < shape.size(); ++i)
+    {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "tensor_shape[" << i << "]=" << tensor_shape[i] << ", shape[" << i << "]=" << shape[i] );
+    }
+    
     // Validate tensor ranks
     ARM_COMPUTE_ERROR_ON_MSG(shape.size() != tensor_shape.num_dimensions(), "Tensor ranks mismatch");
 
@@ -447,6 +464,7 @@ bool NumPyBinLoader::access_tensor(ITensor &tensor)
     {
         std::tie(permuted_shape, perm) = compute_permutation_paramaters(tensor_shape, tensor.info()->data_layout());
     }
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "are_layouts_different=" << are_layouts_different << ", perm.num_dimensions()=" << perm.num_dimensions() );
 
     // Validate shapes
     for(size_t i = 0; i < shape.size(); ++i)
@@ -460,11 +478,15 @@ bool NumPyBinLoader::access_tensor(ITensor &tensor)
         // Read data
         if(tensor.info()->padding().empty() && (dynamic_cast<SubTensor *>(&tensor) == nullptr))
         {
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE( "use buffer" );
+            
             // If tensor has no padding read directly from stream.
             stream.read(reinterpret_cast<char *>(tensor.buffer()), tensor.info()->total_size());
         }
         else
         {
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE( "use window" );
+            
             // If tensor has padding accessing tensor elements through execution window.
             Window window;
             window.use_tensor_dimensions(tensor_shape);
@@ -477,6 +499,8 @@ bool NumPyBinLoader::access_tensor(ITensor &tensor)
     }
     else
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "use window another" );
+        
         // If tensor has padding accessing tensor elements through execution window.
         Window window;
         window.use_tensor_dimensions(permuted_shape);

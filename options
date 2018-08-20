@@ -1,0 +1,11 @@
+--jcode=utf8
+--exclude=.git
+--exclude=.github
+--exclude=build
+--exclude=build-Werror1-debug0-asserts0-neon1-opencl0
+--exclude=build-Werror1-debug1-asserts0-neon1-opencl0
+--exclude=build-Werror1-debug1-asserts0-neon1-opencl0-old
+--exclude=data
+--exclude=docs
+--exclude=documentation
+--exclude=tests

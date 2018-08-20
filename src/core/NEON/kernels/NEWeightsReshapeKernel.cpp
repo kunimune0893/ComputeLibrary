@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+#include "arm_compute/graph/Logger.h"
 #include "arm_compute/core/NEON/kernels/NEWeightsReshapeKernel.h"
 
 #include "arm_compute/core/Dimensions.h"
@@ -48,7 +49,9 @@ void weights_reshape(const ITensor *input, const ITensor *bias, ITensor *output,
     const unsigned int input_stride_y  = input->info()->strides_in_bytes().y();
     const unsigned int input_stride_z  = input->info()->strides_in_bytes().z();
     const unsigned int output_stride_y = output->info()->strides_in_bytes().y();
-
+    
+    //ARM_COMPUTE_LOG_GRAPH_VERBOSE( "weights_reshape(): kernel_size_x=" << kernel_size_x << ", kernel_size_y=" << kernel_size_y << ", kernel_depth=" << kernel_depth );
+    
     // Create iterators
     Iterator in(input, window);
     execute_window_loop(window, [&](const Coordinates & id)
@@ -62,7 +65,9 @@ void weights_reshape(const ITensor *input, const ITensor *bias, ITensor *output,
         uint8_t       *tmp_output_ptr       = output->ptr_to_element(Coordinates(kernel_idx, 0, kernel_idz));
         const uint8_t *curr_input_row_ptr   = tmp_input_ptr;
         const uint8_t *curr_input_depth_ptr = tmp_input_ptr;
-
+        
+        //ARM_COMPUTE_LOG_GRAPH_VERBOSE( "weights_reshape(): kernel_idx=" << kernel_idx << ", kernel_idz=" << kernel_idz << ", instx=" << input_stride_x << ", insty=" << input_stride_y << ", instz=" << input_stride_z << ", output_stride_y=" << output_stride_y );
+        
         // Linearize volume
         for(unsigned int d = 0; d < kernel_depth; ++d)
         {
@@ -71,21 +76,26 @@ void weights_reshape(const ITensor *input, const ITensor *bias, ITensor *output,
                 for(unsigned int i = 0; i < kernel_size_x; ++i)
                 {
                     *(reinterpret_cast<T *>(tmp_output_ptr)) = *(reinterpret_cast<const T *>(tmp_input_ptr));
+                    //if( kernel_depth == 1 /*&& kernel_idx == 0*/ ){ std::cout << *(reinterpret_cast<float *>(tmp_output_ptr)) << ", "; }
                     tmp_input_ptr += is_nhwc ? input_stride_y : input_stride_x;
                     tmp_output_ptr += output_stride_y;
                 }
+                //if( kernel_depth == 1 /*&& kernel_idx == 0*/ ){ std::cout << std::endl; }
                 curr_input_row_ptr += is_nhwc ? input_stride_z : input_stride_y;
                 tmp_input_ptr = curr_input_row_ptr;
             }
+            //if( kernel_depth == 1 /*&& kernel_idx == 0*/ ){ std::cout << std::endl; }
             curr_input_depth_ptr += is_nhwc ? input_stride_x : input_stride_z;
             curr_input_row_ptr = curr_input_depth_ptr;
             tmp_input_ptr      = curr_input_depth_ptr;
         }
+        //if( kernel_depth == 1 /*&& kernel_idx == 0*/ ){ std::cout << std::endl; }
 
         // Add bias
         if(bias != nullptr)
         {
             *(reinterpret_cast<T *>(tmp_output_ptr)) = *(reinterpret_cast<const T *>(bias->ptr_to_element(Coordinates(kernel_idx, kernel_idz))));
+            //if( kernel_depth == 1 /*&& kernel_idx == 0*/ ){ std::cout << *(reinterpret_cast<float *>(tmp_output_ptr)) << std::endl; }
         }
     },
     in);
@@ -172,6 +182,7 @@ void NEWeightsReshapeKernel::configure(const ITensor *input, const ITensor *bias
     {
         case 4:
         {
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEWeightsReshapeKernel::configure(): is_nhwc=" << is_nhwc );
             _func = is_nhwc ? &weights_reshape<uint32_t, true> : &weights_reshape<uint32_t, false>;
             break;
         }

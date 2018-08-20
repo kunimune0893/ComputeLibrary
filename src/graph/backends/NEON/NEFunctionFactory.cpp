@@ -385,8 +385,11 @@ std::unique_ptr<IFunction> create_fully_connected_layer(FullyConnectedLayerNode 
     ITensor *output  = get_backing_tensor(node.output(0));
 
     // Create and configure function
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE("before make instance");
     auto func = support::cpp14::make_unique<NEFullyConnectedLayer>(get_memory_manager(ctx, Target::NEON));
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE("after make instance");
     func->configure(input, weights, biases, output);
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE("after configure");
     ARM_COMPUTE_ERROR_ON(input == nullptr);
     ARM_COMPUTE_ERROR_ON(weights == nullptr);
     ARM_COMPUTE_ERROR_ON(output == nullptr);

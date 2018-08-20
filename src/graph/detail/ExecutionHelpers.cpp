@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+#include "arm_compute/graph/Logger.h"
 #include "arm_compute/graph/detail/ExecutionHelpers.h"
 
 #include "arm_compute/graph/Graph.h"
@@ -216,6 +217,7 @@ void call_all_const_node_accessors(Graph &g)
 
 void call_all_input_node_accessors(ExecutionWorkload &workload)
 {
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "call_all_input_node_accessors" );
     for(auto &input : workload.inputs)
     {
         if(input != nullptr)
@@ -249,6 +251,7 @@ void call_all_tasks(ExecutionWorkload &workload)
     }
 
     // Execute tasks
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "call_all_tasks" );
     for(auto &task : workload.tasks)
     {
         task();
@@ -266,6 +269,7 @@ void call_all_tasks(ExecutionWorkload &workload)
 
 void call_all_output_node_accessors(ExecutionWorkload &workload)
 {
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "call_all_output_node_accessors" );
     for(auto &output : workload.outputs)
     {
         if(output != nullptr)

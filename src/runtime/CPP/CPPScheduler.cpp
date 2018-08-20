@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+#include "arm_compute/graph/Logger.h"
 #include "arm_compute/runtime/CPP/CPPScheduler.h"
 
 #include "arm_compute/core/CPP/ICPPKernel.h"
@@ -186,6 +187,8 @@ void CPPScheduler::schedule(ICPPKernel *kernel, unsigned int split_dimension)
     const unsigned int num_iterations = max_window.num_iterations(split_dimension);
     info.num_threads                  = std::min(num_iterations, _num_threads);
 
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "CPPScheduler::schedule(): " << kernel->name() << ", num_iterations=" << num_iterations << ", _num_threads=" << _num_threads );
+    
     if(num_iterations == 0)
     {
         return;

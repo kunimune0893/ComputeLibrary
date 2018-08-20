@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+#include "arm_compute/graph/Logger.h"
 #include "arm_compute/runtime/NEON/functions/NEFullyConnectedLayer.h"
 
 #include "arm_compute/core/Helpers.h"
@@ -172,6 +173,7 @@ void NEFullyConnectedLayer::configure(const ITensor *input, const ITensor *weigh
     const size_t   interleave_width = 16 / input->info()->element_size();
     const ITensor *weights_to_use   = weights;
 
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "175" );
     if(!are_weights_reshaped && (transpose_weights || _is_batched_fc_layer))
     {
         weights_to_use = &_reshape_weights_output;
@@ -186,6 +188,7 @@ void NEFullyConnectedLayer::configure(const ITensor *input, const ITensor *weigh
 
     const ITensor *multiply_input = input;
 
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "191" );
     if(_linearize_input)
     {
         _im2col_output.allocator()->init(input->info()->clone()->set_is_resizable(true).reset_padding().set_tensor_shape(compute_im2col_fc_shape(input->info(), num_input_dimensions)));
@@ -200,6 +203,7 @@ void NEFullyConnectedLayer::configure(const ITensor *input, const ITensor *weigh
     int m = multiply_input->info()->dimension(1);
     int k = multiply_input->info()->dimension(0);
 
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "206" );
     if(_is_batched_fc_layer)
     {
         _interleave4x4_output.allocator()->init(input->info()->clone()->set_is_resizable(true).reset_padding().set_tensor_shape(compute_interleaved_shape(*multiply_input->info())));
@@ -212,14 +216,17 @@ void NEFullyConnectedLayer::configure(const ITensor *input, const ITensor *weigh
     }
 
     // Configure matrix multiply kernel
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "219" );
     _mm_kernel.configure(multiply_input, weights_to_use, output, 1.0f, _is_batched_fc_layer, GEMMReshapeInfo(m, 0 /* no transpose */, k));
 
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "222: " << _accumulate_biases << ", " << output << ", " << biases );
     if(_accumulate_biases)
     {
         // Configure accumulate biases kernel
         _accumulate_biases_kernel.configure(output, biases);
     }
 
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "229" );
     // Allocate the transpose tensor if the are_weights_reshaped flag is false and once all the configure methods have been called
     if(!are_weights_reshaped && (transpose_weights || _is_batched_fc_layer))
     {
@@ -227,11 +234,13 @@ void NEFullyConnectedLayer::configure(const ITensor *input, const ITensor *weigh
         _reshape_weights_output.allocator()->allocate();
     }
 
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "237" );
     if(_linearize_input)
     {
         _im2col_output.allocator()->allocate();
     }
 
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "243" );
     if(_is_batched_fc_layer)
     {
         _interleave4x4_output.allocator()->allocate();

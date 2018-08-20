@@ -192,4 +192,8 @@ void NEGEMMMatrixAccumulateBiasesKernel::run(const Window &window, const ThreadI
             ARM_COMPUTE_ERROR("Data type not supported");
             break;
     }
+    
+    std::cout << "before dump" << std::endl;
+    _accum->print( std::cout );
+    std::cout << "after dump" << std::endl;
 }

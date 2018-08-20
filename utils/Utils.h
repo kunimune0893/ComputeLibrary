@@ -24,6 +24,7 @@
 #ifndef __UTILS_UTILS_H__
 #define __UTILS_UTILS_H__
 
+#include "arm_compute/graph/Logger.h"
 #include "arm_compute/core/Helpers.h"
 #include "arm_compute/core/ITensor.h"
 #include "arm_compute/core/Types.h"
@@ -942,6 +943,7 @@ int compare_tensor(ITensor &tensor1, ITensor &tensor2)
     Window window;
     window.use_tensor_dimensions(tensor1.info()->tensor_shape());
 
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "compare_tensor" );
     map(tensor1, true);
     map(tensor2, true);
     Iterator itensor1(&tensor1, window);

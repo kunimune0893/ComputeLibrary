@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+#include "arm_compute/graph/Logger.h"
 #include "arm_compute/graph/Graph.h"
 
 namespace arm_compute
@@ -103,6 +104,7 @@ EdgeID Graph::add_connection(NodeID source, size_t source_idx, NodeID sink, size
     tensor->bind_edge(eid);
 
     // Try and propagate shapes in sink node
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "Graph::add_connection(): " << sink_idx );
     sink_node->forward_descriptors();
 
     return eid;

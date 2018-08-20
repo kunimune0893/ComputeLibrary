@@ -41,6 +41,6 @@ CPUInfo &IScheduler::cpu_info()
 
 unsigned int IScheduler::num_threads_hint() const
 {
-    return _num_threads_hint;
+    return /*_num_threads_hint*/1;
 }
 } // namespace arm_compute

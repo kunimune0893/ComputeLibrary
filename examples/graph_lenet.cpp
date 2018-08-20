@@ -22,6 +22,8 @@
  * SOFTWARE.
  */
 #include "arm_compute/graph.h"
+#include "arm_compute/core/utils/logging/LoggerRegistry.h"
+#include "arm_compute/core/utils/logging/Types.h"
 
 #include "support/ToolchainSupport.h"
 #include "utils/GraphUtils.h"
@@ -32,6 +34,7 @@
 using namespace arm_compute::utils;
 using namespace arm_compute::graph::frontend;
 using namespace arm_compute::graph_utils;
+using namespace arm_compute::logging;
 
 /** Example demonstrating how to implement LeNet's network using the Compute Library's graph API
  *
@@ -44,14 +47,16 @@ public:
     void do_setup(int argc, char **argv) override
     {
         std::string  data_path;   /** Path to the trainable data */
-        unsigned int batches = 4; /** Number of batches */
-
+        std::string npy_in;       /* Input npy data */
+        std::string npy_out;      /* Output npy data */
+        unsigned int batches = 1; /** Number of batches */
+        
         // Set target. 0 (NEON), 1 (OpenCL), 2 (OpenCL with Tuner). By default it is NEON
         const int target      = argc > 1 ? std::strtol(argv[1], nullptr, 10) : 0;
         Target    target_hint = set_target_hint(target);
-
+        
         FastMathHint fast_math_hint = FastMathHint::DISABLED;
-
+        
         // Parse arguments
         if(argc < 2)
         {
@@ -74,7 +79,17 @@ public:
         else if(argc == 4)
         {
             data_path = argv[2];
-            batches   = std::strtol(argv[3], nullptr, 0);
+            //batches        = std::strtol(argv[3], nullptr, 0);
+            npy_in         = argv[3];
+            std::cout << "Usage: " << argv[0] << " " << argv[1] << " " << argv[2] << " " << argv[3] << " [fast_math_hint]\n\n";
+            std::cout << "No fast math info provided: disabling fast math\n\n";
+        }
+        else if(argc == 5)
+        {
+            data_path = argv[2];
+            //batches        = std::strtol(argv[3], nullptr, 0);
+            npy_in         = argv[3];
+            npy_out        = argv[4];
             std::cout << "Usage: " << argv[0] << " " << argv[1] << " " << argv[2] << " " << argv[3] << " [fast_math_hint]\n\n";
             std::cout << "No fast math info provided: disabling fast math\n\n";
         }
@@ -82,41 +97,57 @@ public:
         {
             //Do something with argv[1] and argv[2]
             data_path      = argv[2];
-            batches        = std::strtol(argv[3], nullptr, 0);
+            //batches        = std::strtol(argv[3], nullptr, 0);
+            npy_in         = argv[3];
             fast_math_hint = (std::strtol(argv[4], nullptr, 1) == 0) ? FastMathHint::DISABLED : FastMathHint::ENABLED;
         }
-
+        
+        // ログレベルセット
+        std::cout << "LogLevel = " << string_from_log_level(LogLevel::VERBOSE) << std::endl;
+        ARM_COMPUTE_CREATE_DEFAULT_GRAPH_LOGGER();
+        auto __logger = arm_compute::logging::LoggerRegistry::get().logger( "GRAPH" );
+        if(__logger != nullptr)
+        {
+            std::cout << "LogLevel = " << string_from_log_level(__logger->log_level()) << std::endl;
+            __logger->set_log_level( LogLevel::VERBOSE );
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE( "VERBOSE\n" );
+        }
+        
         //conv1 << pool1 << conv2 << pool2 << fc1 << act1 << fc2 << smx
         graph << target_hint
               << fast_math_hint
-              << InputLayer(TensorDescriptor(TensorShape(28U, 28U, 1U, batches), DataType::F32), get_input_accessor(""))
+              /*<< InputLayer(TensorDescriptor(TensorShape(28U, 28U, 1U, batches), DataType::F32), get_input_accessor(""))*/
+              << InputLayer(TensorDescriptor(TensorShape(28U, 28U, 1U, batches), DataType::F32), get_input_accessor(npy_in))
               << ConvolutionLayer(
-                  5U, 5U, 20U,
-                  get_weights_accessor(data_path, "/cnn_data/lenet_model/conv1_w.npy"),
-                  get_weights_accessor(data_path, "/cnn_data/lenet_model/conv1_b.npy"),
+                  5U, 5U, /*20U*/32U,
+                  get_weights_accessor(data_path, /*"/conv1_w.npy"*/"/conv1_w_t.npy"),
+                  get_weights_accessor(data_path, "/conv1_b.npy"),
                   PadStrideInfo(1, 1, 0, 0))
               .set_name("conv1")
+              << ActivationLayer(ActivationLayerInfo(ActivationLayerInfo::ActivationFunction::RELU)).set_name("relu_c1")
               << PoolingLayer(PoolingLayerInfo(PoolingType::MAX, 2, PadStrideInfo(2, 2, 0, 0))).set_name("pool1")
               << ConvolutionLayer(
-                  5U, 5U, 50U,
-                  get_weights_accessor(data_path, "/cnn_data/lenet_model/conv2_w.npy"),
-                  get_weights_accessor(data_path, "/cnn_data/lenet_model/conv2_b.npy"),
+                  5U, 5U, /*50U*/64U,
+                  get_weights_accessor(data_path, /*"/conv2_w.npy"*/"/conv2_w_t.npy"),
+                  get_weights_accessor(data_path, "/conv2_b.npy"),
                   PadStrideInfo(1, 1, 0, 0))
               .set_name("conv2")
+              << ActivationLayer(ActivationLayerInfo(ActivationLayerInfo::ActivationFunction::RELU)).set_name("relu_c2")
               << PoolingLayer(PoolingLayerInfo(PoolingType::MAX, 2, PadStrideInfo(2, 2, 0, 0))).set_name("pool2")
               << FullyConnectedLayer(
-                  500U,
-                  get_weights_accessor(data_path, "/cnn_data/lenet_model/ip1_w.npy"),
-                  get_weights_accessor(data_path, "/cnn_data/lenet_model/ip1_b.npy"))
+                  /*500U*/1024U,
+                  get_weights_accessor(data_path, /*"/ip1_w.npy"*/"/ip1_w_t.npy"),
+                  get_weights_accessor(data_path, "/ip1_b.npy"))
               .set_name("ip1")
-              << ActivationLayer(ActivationLayerInfo(ActivationLayerInfo::ActivationFunction::RELU)).set_name("relu")
+              << ActivationLayer(ActivationLayerInfo(ActivationLayerInfo::ActivationFunction::RELU)).set_name("relu_i1")
               << FullyConnectedLayer(
                   10U,
-                  get_weights_accessor(data_path, "/cnn_data/lenet_model/ip2_w.npy"),
-                  get_weights_accessor(data_path, "/cnn_data/lenet_model/ip2_b.npy"))
+                  get_weights_accessor(data_path, /*"/ip2_w.npy"*/"/ip2_w_t.npy"),
+                  get_weights_accessor(data_path, "/ip2_b.npy"))
               .set_name("ip2")
               << SoftmaxLayer().set_name("prob")
-              << OutputLayer(get_output_accessor(""));
+              /*<< OutputLayer(get_output_accessor(""));*/
+              << OutputLayer(get_npy_output_accessor(npy_out, TensorShape(10U), DataType::F32));
 
         // Finalize graph
         GraphConfig config;
@@ -126,6 +157,7 @@ public:
     void do_run() override
     {
         // Run graph
+        std::cout << "before graph.run()\n";
         graph.run();
     }
 

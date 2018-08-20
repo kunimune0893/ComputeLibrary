@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+#include "arm_compute/graph/Logger.h"
 #include "arm_compute/runtime/NEON/functions/NEGEMMConvolutionLayer.h"
 
 #include "arm_compute/core/PixelValue.h"
@@ -69,6 +70,8 @@ void NEConvolutionLayerReshapeWeights::configure(const ITensor *weights, const I
 
     if(transpose1xW)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEConvolutionLayerReshapeWeights::configure(): transpose1xW=" << transpose1xW );
+        
         // Create tensor to store the reshaped weights
         TensorInfo info_wr = weights->info()->clone()->set_is_resizable(true).reset_padding().set_tensor_shape(get_reshaped_weights_shape(weights->info(), append_biases));
 
@@ -82,7 +85,9 @@ void NEConvolutionLayerReshapeWeights::configure(const ITensor *weights, const I
     }
     else
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEConvolutionLayerReshapeWeights::configure(): before _weights_reshape_kernel.configure()" );
         _weights_reshape_kernel.configure(weights, biases_to_use, output);
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEConvolutionLayerReshapeWeights::configure(): after _weights_reshape_kernel.configure()" );
     }
 
     output->info()->set_quantization_info(weights->info()->quantization_info());
@@ -284,6 +289,7 @@ void NEGEMMConvolutionLayer::configure(const ITensor *input, const ITensor *weig
                                                    kernel_width, kernel_height,
                                                    _is_fully_connected_convolution, _is_interleaved, _is_quantized, _is_activationlayer_enabled,
                                                    mat_weights_cols, mat_weights_rows, conv_w, conv_h, dilation);
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEGEMMConvolutionLayer::configure: is_nhwc=" << is_nhwc << ", " );
 
     ARM_COMPUTE_ERROR_THROW_ON(status);
 
@@ -296,6 +302,7 @@ void NEGEMMConvolutionLayer::configure(const ITensor *input, const ITensor *weig
     // Reshape weights if needed
     if(run_optimised)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEGEMMConvolutionLayer::configure: run_optimised=" << run_optimised << ", mat_weights_cols=" << mat_weights_cols << ", mat_weights_rows=" << mat_weights_rows );
         TensorShape reshaped_weights_shape{ mat_weights_cols, mat_weights_rows };
 
         // Create tensor to store the reshaped weights
@@ -305,6 +312,8 @@ void NEGEMMConvolutionLayer::configure(const ITensor *input, const ITensor *weig
     }
     else
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEGEMMConvolutionLayer::configure: run_optimised=" << run_optimised << ", " );
+        
         if(_are_weights_reshaped)
         {
             if(_is_fully_connected_convolution || _is_quantized)
@@ -352,12 +361,14 @@ void NEGEMMConvolutionLayer::configure(const ITensor *input, const ITensor *weig
         shape_im2col.set(0, mat_input_cols);
         shape_im2col.set(1, mat_input_rows);
         shape_im2col.set(2, 1);
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEGEMMConvolutionLayer::configure: _skip_im2col=" << _skip_im2col << ", mat_input_cols=" << mat_input_cols << ", mat_input_rows=" << mat_input_rows );
         _input_im2col_reshaped.allocator()->init(input->info()->clone()->set_is_resizable(true).reset_padding().set_tensor_shape(shape_im2col));
         _memory_group.manage(&_input_im2col_reshaped);
 
         // Create tensor (interleave) to prepare input tensor for GEMM
         if(!_is_fully_connected_convolution && !run_optimised && _is_interleaved)
         {
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEGEMMConvolutionLayer::configure: _is_fully_connected_convolution=" << _is_fully_connected_convolution << ", run_optimised=" << run_optimised << ", _is_interleaved=" << _is_interleaved );
             TensorShape shape_interleaved(shape_im2col);
             shape_interleaved.set(idx_width, shape_interleaved.x() * 4);
             shape_interleaved.set(idx_height, std::ceil(shape_interleaved[idx_height] / 4.f));
@@ -376,7 +387,9 @@ void NEGEMMConvolutionLayer::configure(const ITensor *input, const ITensor *weig
         _gemm_output.allocator()->init(info_gemm);
 
         // Configure im2col
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEGEMMConvolutionLayer::configure: before _input_im2col_kernel.configure()" );
         _input_im2col_kernel.configure(input, &_input_im2col_reshaped, Size2D(kernel_width, kernel_height), conv_info, _append_bias, false, false, dilation);
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEGEMMConvolutionLayer::configure: after _input_im2col_kernel.configure()" );
     }
     else if(_append_bias)
     {
@@ -387,10 +400,12 @@ void NEGEMMConvolutionLayer::configure(const ITensor *input, const ITensor *weig
     // Configure matrix multiply
     if(run_optimised)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEGEMMConvolutionLayer::configure: before setup_assembly_kernel(), run_optimised=" << run_optimised );
         if(!setup_assembly_kernel(_skip_im2col ? input : &_input_im2col_reshaped, weights, is_nhwc ? output : &_gemm_output, 1.f, 0.f, true, _workspace, _B_pretransposed, _memory_group, _asm_glue))
         {
             ARM_COMPUTE_ERROR("setup_assembly_kernel failed.");
         }
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEGEMMConvolutionLayer::configure: after setup_assembly_kernel()" );
     }
     else
     {
@@ -412,11 +427,15 @@ void NEGEMMConvolutionLayer::configure(const ITensor *input, const ITensor *weig
 
     if(!_skip_im2col)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEGEMMConvolutionLayer::configure: _skip_im2col=" << _skip_im2col );
+        
         _input_im2col_reshaped.allocator()->allocate();
 
         // Configure output stage for quantized case
         if(_is_quantized)
         {
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEGEMMConvolutionLayer::configure: _is_quantized=" << _is_quantized );
+            
             const QuantizationInfo output_quant_info = (output->info()->total_size() == 0) ? input->info()->quantization_info() : output->info()->quantization_info();
 
             float multiplier = input->info()->quantization_info().scale * weights->info()->quantization_info().scale / output_quant_info.scale;
@@ -429,13 +448,17 @@ void NEGEMMConvolutionLayer::configure(const ITensor *input, const ITensor *weig
         // Configure Col2Im
         if(!is_nhwc)
         {
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEGEMMConvolutionLayer::configure: before _output_col2im_kernel.configure(), conv_w=" << conv_w << ", conv_h=" << conv_h );
             _output_col2im_kernel.configure(_is_quantized ? &_tmp_output : &_gemm_output, output, Size2D(conv_w, conv_h));
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEGEMMConvolutionLayer::configure: after _output_col2im_kernel.configure()" );
         }
 
         if(_is_quantized)
         {
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEGEMMConvolutionLayer::configure: _is_quantized=" << _is_quantized );
             _tmp_output.allocator()->allocate();
         }
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEGEMMConvolutionLayer::configure: before _gemm_output.allocator()->allocate()" );
         _gemm_output.allocator()->allocate();
     }
 
@@ -444,12 +467,14 @@ void NEGEMMConvolutionLayer::configure(const ITensor *input, const ITensor *weig
     // Allocate intermediate tensor
     if(!_are_weights_reshaped)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEGEMMConvolutionLayer::configure: _are_weights_reshaped=" << _are_weights_reshaped );
         _weights_reshaped.allocator()->allocate();
     }
 
     //Configure Activation Layer
     if(_is_activationlayer_enabled)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEGEMMConvolutionLayer::configure: _is_activationlayer_enabled=" << _is_activationlayer_enabled );
         _activationlayer_function.configure(output, nullptr, act_info);
     }
 }
@@ -584,9 +609,12 @@ Status NEGEMMConvolutionLayer::validate(const ITensorInfo *input, const ITensorI
 
 void NEGEMMConvolutionLayer::run()
 {
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE("NEGEMMConvolutionLayer::run()");
+    
     // Run weights reshaping (Runs once for every configure)
     if(!_are_weights_reshaped)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE("_are_weights_reshaped: false");
         ARM_COMPUTE_ERROR_ON(!_original_weights->is_used());
 
         _are_weights_reshaped = true;
@@ -603,11 +631,15 @@ void NEGEMMConvolutionLayer::run()
         // Run input reshaping
         unsigned int _y_dim = get_data_layout_dimension_index(_data_layout, DataLayoutDimension::HEIGHT);
         NEScheduler::get().schedule(&_input_im2col_kernel, _y_dim);
+        
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE("_skip_im2col: false, _y_dim=" << _y_dim);
     }
 
     // Runs matrix multiply on reshaped matrices
     if(_asm_glue._optimised_kernel != nullptr)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE("_asm_glue._optimised_kernel: not nullptr");
+        
         _asm_glue.run();
         // Release weights in case buffer is pretransposed
         if(!_weights_reshaped.is_used())
@@ -617,6 +649,8 @@ void NEGEMMConvolutionLayer::run()
     }
     else
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE("_asm_glue._optimised_kernel: nullptr");
+        
         if(_is_interleaved)
         {
             // Run interleave
@@ -636,23 +670,27 @@ void NEGEMMConvolutionLayer::run()
 
     if(_skip_im2col && _append_bias)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE("_skip_im2col && _append_bias");
         NEScheduler::get().schedule(&_add_bias_kernel, Window::DimY);
     }
 
     // Run output stage for quantized case
     if(_is_quantized)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE("_is_quantized: true");
         _gemmlowp_output_stage.run();
     }
 
     // Reshape output matrix
     if(_data_layout == DataLayout::NCHW)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE("_data_layout == DataLayout::NCHW");
         NEScheduler::get().schedule(&_output_col2im_kernel, Window::DimY);
     }
 
     if(_is_activationlayer_enabled)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE("_is_activationlayer_enabled: true");
         _activationlayer_function.run();
     }
 

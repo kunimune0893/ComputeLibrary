@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+#include "arm_compute/graph/Logger.h"
 #include "arm_compute/runtime/NEON/functions/NEConvolutionLayer.h"
 
 #include "arm_compute/core/PixelValue.h"
@@ -52,6 +53,7 @@ void NEConvolutionLayer::configure(ITensor *input, const ITensor *weights, const
     {
         case ConvolutionMethod::WINOGRAD:
         {
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE("NEConvolutionLayer::configure WINOGRAD");
             auto f = arm_compute::support::cpp14::make_unique<NEWinogradConvolutionLayer>(_memory_manager);
             f->configure(input, weights, biases, output, conv_info, act_info, enable_fast_math);
             _function = std::move(f);
@@ -59,6 +61,7 @@ void NEConvolutionLayer::configure(ITensor *input, const ITensor *weights, const
         }
         case ConvolutionMethod::GEMM:
         {
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE("NEConvolutionLayer::configure GEMM");
             auto f = arm_compute::support::cpp14::make_unique<NEGEMMConvolutionLayer>(_memory_manager);
             f->configure(input, weights, biases, output, conv_info, weights_info, dilation, act_info);
             _function = std::move(f);
@@ -66,6 +69,7 @@ void NEConvolutionLayer::configure(ITensor *input, const ITensor *weights, const
         }
         case ConvolutionMethod::DIRECT:
         {
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE("NEConvolutionLayer::configure DIRECT");
             auto f = arm_compute::support::cpp14::make_unique<NEDirectConvolutionLayer>(_memory_manager);
             f->configure(input, weights, biases, output, conv_info, act_info);
             _function = std::move(f);

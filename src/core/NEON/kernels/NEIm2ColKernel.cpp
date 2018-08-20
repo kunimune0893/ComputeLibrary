@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+#include "arm_compute/graph/Logger.h"
 #include "arm_compute/core/NEON/kernels/NEIm2ColKernel.h"
 
 #include "arm_compute/core/Error.h"
@@ -110,6 +111,8 @@ inline void linearize_volume(const uint8_t *const in_ptr,
         {
             if((y < 0 || y >= input_h) && has_pads)
             {
+                ARM_COMPUTE_LOG_GRAPH_VERBOSE( "linearize_volume(): not pass" );
+                
                 // All the values will be the offset (will be zeros when not quantized)
                 for(int x = top_left_x; x < x_e; x += dilation_x, ++out_ptr)
                 {
@@ -124,6 +127,8 @@ inline void linearize_volume(const uint8_t *const in_ptr,
                 {
                     if((x < 0 || x >= input_w) && has_pads)
                     {
+                        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "linearize_volume(): not pass" );
+                        
                         *(out_ptr + 0 * kernel_size2) = pad_value;
                         *(out_ptr + 1 * kernel_size2) = pad_value;
                         *(out_ptr + 2 * kernel_size2) = pad_value;
@@ -147,6 +152,8 @@ inline void linearize_volume(const uint8_t *const in_ptr,
         {
             if((y < 0 || y >= input_h) && has_pads)
             {
+                ARM_COMPUTE_LOG_GRAPH_VERBOSE( "linearize_volume(): not pass" );
+                
                 // All the values will be the offset (will be zeros when not quantized)
                 memset(out_ptr, pad_value, kernel_width * sizeof(T));
                 out_ptr += kernel_width;
@@ -157,15 +164,19 @@ inline void linearize_volume(const uint8_t *const in_ptr,
                 {
                     if((x < 0 || x >= input_w) && has_pads)
                     {
+                        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "linearize_volume(): not pass" );
                         *out_ptr = pad_value;
                     }
                     else
                     {
                         *out_ptr = *(reinterpret_cast<const T *>(in_ptr + (d * input_stride_z + y * input_stride_y + x * input_stride_x)));
+                        //if( /*top_left_x == 0 && top_left_y == 0 &&*/ kernel_depth == 1 ){ std::cout << *out_ptr << ", "; }
                     }
                 }
+                //if( /*top_left_x == 0 && top_left_y == 0 &&*/ kernel_depth == 1 ){ std::cout << std::endl; }
             }
         }
+        //if( /*top_left_x == 0 && top_left_y == 0 &&*/ kernel_depth == 1 ){ std::cout << std::endl; }
     }
 
     // Append 1 if the convolution layer has biases
@@ -228,15 +239,41 @@ void NEIm2ColKernel::run_generic(const Window &window)
     Iterator in(_input, window_in_out);
     Iterator out(_output, window_in_out);
 
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEIm2ColKernel::run_generic(): before execute_window_loop(), start_x=" << start_x << ", start_y=" << start_y << ", _has_bias=" << _has_bias );
     execute_window_loop(window, [&](const Coordinates & id)
     {
         const int top_left_x = id[width_idx] * stride_x + start_x;
         const int top_left_y = id[height_idx] * stride_y + start_y;
 
+        //ARM_COMPUTE_LOG_GRAPH_VERBOSE( "loop(), sx=" << start_x << ", sy=" << start_y << ", stx=" << stride_x << ", sty=" << stride_y << ", topx=" << top_left_x << ", topy=" << top_left_y << ", kw=" << static_cast<int>(_kernel_width) << ", kh=" << static_cast<int>(_kernel_height) << ", kd=" << kernel_depth << ", dilx=" << _dilation.x() << ", dily=" << _dilation.y() << ", inw=" << input_w << ", inh=" << input_h << ", instx=" << input_stride_x << ", insty=" << input_stride_y << ", instz=" << input_stride_z );
+        
         // Get pointers
         const uint8_t *const input_ptr  = in.ptr();
         auto                 output_ptr = reinterpret_cast<T *>(out.ptr() + (id[width_idx] + id[height_idx] * _convolved_dims.first) * _output->info()->strides_in_bytes().y());
-
+        
+        if( top_left_x == 0 && top_left_y == 0 && input_w == 28 && input_h == 28 && kernel_depth == 1 ){
+#if 0
+            for( int ii = 0; ii < static_cast<int>(_kernel_height); ii++ ){
+                for( int jj = 0; jj < static_cast<int>(_kernel_width); jj++ ){
+                    std::cout << *(reinterpret_cast<const float *>(input_ptr)) << ", ";
+                    //std::cout << *(reinterpret_cast<const float *>(input_ptr + (ii * static_cast<int>(_kernel_width) + jj))) << ", ";
+                }
+                std::cout << std::endl;
+            }
+            std::cout << std::endl;
+#endif
+#if 0
+            for( int ii = 0; ii < 5; ii++ ){
+                for( int jj = 0; jj < 5; jj++ ){
+                    std::cout << *(reinterpret_cast<const float *>(input_ptr + ii + jj)) << ", ";
+                    //std::cout << *(reinterpret_cast<const float *>(input_ptr + (ii * static_cast<int>(_kernel_width) + jj))) << ", ";
+                }
+                std::cout << std::endl;
+            }
+            std::cout << std::endl;
+#endif
+        }
+        
         // Linearize volume
         linearize_volume<T, has_pads>(input_ptr,
                                       output_ptr,
@@ -359,6 +396,7 @@ void NEIm2ColKernel::configure(const ITensor *input, ITensor *output, const Size
         switch(_input->info()->data_type())
         {
             case DataType::F32:
+                ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEIm2ColKernel::configure(): DataType::F32, run_img2col_reduced=" << run_img2col_reduced );
                 _func = &NEIm2ColKernel::run_reduced<float>;
                 break;
 #ifdef __ARM_FEATURE_FP16_VECTOR_ARITHMETIC
@@ -385,6 +423,7 @@ void NEIm2ColKernel::configure(const ITensor *input, ITensor *output, const Size
         switch(_input->info()->data_type())
         {
             case DataType::F32:
+                ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEIm2ColKernel::configure(): DataType::F32, run_img2col_reduced=" << run_img2col_reduced << ", conv_info.has_padding()=" << conv_info.has_padding() );
                 _func = (!conv_info.has_padding()) ? &NEIm2ColKernel::run_generic<float, false> : &NEIm2ColKernel::run_generic<float, true>;
                 break;
 #ifdef __ARM_FEATURE_FP16_VECTOR_ARITHMETIC
@@ -413,6 +452,7 @@ void NEIm2ColKernel::configure(const ITensor *input, ITensor *output, const Size
     // The NEIm2ColKernel doesn't need padding so update_window_and_padding() can be skipped
     output->info()->set_valid_region(ValidRegion(Coordinates(), output->info()->tensor_shape()));
 
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEIm2ColKernel::configure(): before IKernel::configure()" );
     IKernel::configure(window);
 }
 

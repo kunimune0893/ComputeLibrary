@@ -70,7 +70,9 @@ void GraphManager::finalize_graph(Graph &graph, GraphContext &ctx, PassManager &
     ARM_COMPUTE_ERROR_ON_MSG(workload.tasks.empty(), "Could not configure all nodes!");
 
     // Allocate const tensors and call accessors
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "before allocate_const_tensors()" );
     detail::allocate_const_tensors(graph);
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "before call_all_const_node_accessors()" );
     detail::call_all_const_node_accessors(graph);
 
     if(forced_target == Target::CL)
@@ -82,7 +84,9 @@ void GraphManager::finalize_graph(Graph &graph, GraphContext &ctx, PassManager &
     // Setup tensor memory (Allocate all tensors or setup transition manager)
     if(ctx.config().use_transition_memory_manager)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "before configure_transition_manager()" );
         detail::configure_transition_manager(graph, ctx, workload);
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "after configure_transition_manager()" );
     }
     else
     {
