@@ -28,6 +28,7 @@
 
 #include <algorithm>
 
+#include "arm_compute/graph/Logger.h"
 #include "arm_gemm.hpp"
 #include "utils.hpp"
 
@@ -247,6 +248,7 @@ class GemmInterleaved : public GemmCommon<To, Tr>
         // newkblock() is always true on the first iteration, so this will be set properly on the first loop.
         int kern_k = 0;
 
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE("execute_internal(): batch_0=" << batch_0 << ", batch_end=" << batch_end << ", m_0=" << m_0 << ", m_max=" << m_max << ", _Msize=" << _Msize << ", current.newkblock()=" << current.newkblock());
         for(; !current.done(); current.advance())
         {
             if(current.newkblock())
@@ -263,6 +265,7 @@ class GemmInterleaved : public GemmCommon<To, Tr>
                         continue;
                     if(_trA ^ strategy::A_transpose)
                     {
+                        ARM_COMPUTE_LOG_GRAPH_VERBOSE("execute_internal(): _trA ^ strategy::A_transpose");
                         Transform<strategy::A_interleave, strategy::A_block, true>(
                             a_panel + ((batch * _Mround + first_m) * _k_block),
                             this->_Aptr + (batch * this->_A_batch_stride) + (current.multi() * this->_A_multi_stride),
@@ -270,6 +273,7 @@ class GemmInterleaved : public GemmCommon<To, Tr>
                     }
                     else
                     {
+                        ARM_COMPUTE_LOG_GRAPH_VERBOSE("execute_internal(): not _trA ^ strategy::A_transpose");
                         Transform<strategy::A_interleave, strategy::A_block, false>(
                             a_panel + ((batch * _Mround + first_m) * _k_block),
                             this->_Aptr + (batch * this->_A_batch_stride) + (current.multi() * this->_A_multi_stride),
@@ -286,6 +290,7 @@ class GemmInterleaved : public GemmCommon<To, Tr>
 
             if(!pretransposed)
             {
+                ARM_COMPUTE_LOG_GRAPH_VERBOSE("execute_internal(): pretransposed=false");
                 /* Look ahead to the next block and populate it if necessary.
                  * This avoids the populate operation becoming a bottleneck, and
                  * helps keep the threads synchronized (the first thread to get
@@ -342,6 +347,7 @@ class GemmInterleaved : public GemmCommon<To, Tr>
             }
 
             /* Do the actual work. */
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE("execute_internal(): batch_0=" << batch_0 << ", batch_end=" << batch_end << ", m_0=" << m_0 << ", m_max=" << m_max << ", _Msize=" << _Msize << ", current.newkblock()=" << current.newkblock());
             for(unsigned int batch = batch_0; batch <= batch_end; batch++)
             {
                 unsigned int first_m = (batch == batch_0) ? m_0 : 0;
@@ -352,6 +358,7 @@ class GemmInterleaved : public GemmCommon<To, Tr>
                 if(first_m >= last_m)
                     continue;
 
+                ARM_COMPUTE_LOG_GRAPH_VERBOSE("execute_internal(): first_m=" << first_m << ", last_m=" << last_m << ", strategy::out_height=" << strategy::out_height);
                 for(unsigned int y = first_m; y < last_m; y += strategy::out_height)
                 {
                     unsigned int ymax = std::min(_Msize, y + strategy::out_height);
@@ -471,6 +478,7 @@ public:
     {
         if(_pretransposed)
         {
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE("execute(): _pretransposed=true");
             execute_internal<true>(start, end, threadid);
         }
         else

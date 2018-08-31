@@ -54,6 +54,8 @@ void NEFullyConnectedLayerReshapeWeights::configure(const ITensor *input, ITenso
     // Check if we need to transpose the weights
     if(_transpose_weights)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEFullyConnectedLayerReshapeWeights::configure(): _transpose_weights=" << _transpose_weights << ", _is_batched_fc_layer=" << _is_batched_fc_layer );
+        
         if(_is_batched_fc_layer)
         {
             // Initialize the output tensor for transpose
@@ -69,11 +71,15 @@ void NEFullyConnectedLayerReshapeWeights::configure(const ITensor *input, ITenso
         }
         else
         {
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEFullyConnectedLayerReshapeWeights::configure(): before _transpose_kernel.configure()" );
             _transpose_kernel.configure(input, output);
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEFullyConnectedLayerReshapeWeights::configure(): after _transpose_kernel.configure()" );
         }
     }
     else
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEFullyConnectedLayerReshapeWeights::configure(): _transpose_weights=" << _transpose_weights << ", _is_batched_fc_layer=" << _is_batched_fc_layer );
+        
         if(_is_batched_fc_layer)
         {
             // Configure transpose 1xW kernel
@@ -173,9 +179,10 @@ void NEFullyConnectedLayer::configure(const ITensor *input, const ITensor *weigh
     const size_t   interleave_width = 16 / input->info()->element_size();
     const ITensor *weights_to_use   = weights;
 
-    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "175" );
     if(!are_weights_reshaped && (transpose_weights || _is_batched_fc_layer))
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEFullyConnectedLayer::configure(): are_weights_reshaped=" << are_weights_reshaped << ", transpose_weights=" << transpose_weights << ", _is_batched_fc_layer=" << _is_batched_fc_layer );
+        
         weights_to_use = &_reshape_weights_output;
 
         _reshape_weights_output.allocator()->init(input->info()->clone()->set_is_resizable(true).reset_padding().set_tensor_shape(compute_fully_connected_reshaped_weights_shape(weights->info(),
@@ -188,9 +195,10 @@ void NEFullyConnectedLayer::configure(const ITensor *input, const ITensor *weigh
 
     const ITensor *multiply_input = input;
 
-    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "191" );
     if(_linearize_input)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEFullyConnectedLayer::configure(): _linearize_input=" << _linearize_input );
+        
         _im2col_output.allocator()->init(input->info()->clone()->set_is_resizable(true).reset_padding().set_tensor_shape(compute_im2col_fc_shape(input->info(), num_input_dimensions)));
 
         // Configure im2col kernel
@@ -203,9 +211,10 @@ void NEFullyConnectedLayer::configure(const ITensor *input, const ITensor *weigh
     int m = multiply_input->info()->dimension(1);
     int k = multiply_input->info()->dimension(0);
 
-    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "206" );
     if(_is_batched_fc_layer)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "NEFullyConnectedLayer::configure(): _is_batched_fc_layer=" << _is_batched_fc_layer );
+        
         _interleave4x4_output.allocator()->init(input->info()->clone()->set_is_resizable(true).reset_padding().set_tensor_shape(compute_interleaved_shape(*multiply_input->info())));
 
         // Configure interleave4x4 kernel
@@ -331,9 +340,12 @@ Status NEFullyConnectedLayer::validate(const ITensorInfo *input, const ITensorIn
 
 void NEFullyConnectedLayer::run()
 {
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE("NEFullyConnectedLayer::run()");
+    
     // Reshape of the weights (happens only once)
     if(!_are_weights_reshaped)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE("_are_weights_reshaped: false");
         ARM_COMPUTE_ERROR_ON(!_original_weights->is_used());
 
         _are_weights_reshaped = true;
@@ -348,21 +360,26 @@ void NEFullyConnectedLayer::run()
     // Linearize input if it comes from a convolutional layer
     if(_linearize_input)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE("_linearize_input: true");
         NEScheduler::get().schedule(&_im2col_kernel, Window::DimY);
     }
 
     // Interleave input
     if(_is_batched_fc_layer)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE("_is_batched_fc_layer: true");
         NEScheduler::get().schedule(&_interleave4x4_kernel, Window::DimY);
     }
 
     // Run matrix multiply
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE("before: _mm_kernel");
     NEScheduler::get().schedule(&_mm_kernel, _is_batched_fc_layer ? Window::DimY : Window::DimX);
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE("after: _mm_kernel");
 
     // Accumulate biases if provided
     if(_accumulate_biases)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE("_accumulate_biases: true");
         NEScheduler::get().schedule(&_accumulate_biases_kernel, Window::DimY);
     }
 

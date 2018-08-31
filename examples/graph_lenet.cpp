@@ -124,16 +124,21 @@ public:
                   get_weights_accessor(data_path, "/conv1_b.npy"),
                   PadStrideInfo(1, 1, 0, 0))
               .set_name("conv1")
+              /* 24 * 24 * 32 */
               << ActivationLayer(ActivationLayerInfo(ActivationLayerInfo::ActivationFunction::RELU)).set_name("relu_c1")
               << PoolingLayer(PoolingLayerInfo(PoolingType::MAX, 2, PadStrideInfo(2, 2, 0, 0))).set_name("pool1")
+              /* 12 * 12 * 32 */
               << ConvolutionLayer(
                   5U, 5U, /*50U*/64U,
                   get_weights_accessor(data_path, /*"/conv2_w.npy"*/"/conv2_w_t.npy"),
                   get_weights_accessor(data_path, "/conv2_b.npy"),
                   PadStrideInfo(1, 1, 0, 0))
               .set_name("conv2")
+              /* 8 * 8 * 64 */
               << ActivationLayer(ActivationLayerInfo(ActivationLayerInfo::ActivationFunction::RELU)).set_name("relu_c2")
               << PoolingLayer(PoolingLayerInfo(PoolingType::MAX, 2, PadStrideInfo(2, 2, 0, 0))).set_name("pool2")
+              /* 4 * 4 * 64 = 1024, 1024 * 1024 */
+              /*<< FlattenLayer()*/
               << FullyConnectedLayer(
                   /*500U*/1024U,
                   get_weights_accessor(data_path, /*"/ip1_w.npy"*/"/ip1_w_t.npy"),

@@ -24,6 +24,7 @@
 #ifndef __ARM_ASSEMBLY_HELPER_H__
 #define __ARM_ASSEMBLY_HELPER_H__
 
+#include "arm_compute/graph/Logger.h"
 #include "arm_compute/core/ITensor.h"
 #include "support/ToolchainSupport.h"
 
@@ -167,6 +168,8 @@ inline bool setup_assembly_kernel(const ITensor *a, const ITensor *b, ITensor *d
     const int      multis      = b->info()->tensor_shape().z();
     unsigned int   num_threads = NEScheduler::get().num_threads();
 
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE("setup_assembly_kernel(): M=" << M << ", N=" << N << ", K=" << K << ", batches=" << batches << ", multis=" << multis << ", num_threads=" << num_threads );
+
     // unique_ptr to a Gemm object
     std::unique_ptr<typename T::AssemblyGemm>
     asm_gemm(arm_gemm::gemm<typename T::TypeOperator, typename T::TypeResult>(ci, M, N, K, batches, multis, false, false, alpha, beta, num_threads, pretranspose_hint));
@@ -175,10 +178,14 @@ inline bool setup_assembly_kernel(const ITensor *a, const ITensor *b, ITensor *d
                                                                   acl_gemm_wrapper = support::cpp14::make_unique<NEGEMMAssemblyWrapper<typename T::AssemblyGemm>>();
     if(acl_gemm_wrapper != nullptr && asm_gemm != nullptr)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "acl_gemm_wrapper != nullptr && asm_gemm != nullptr" );
+        
         acl_gemm_wrapper->configure(asm_gemm.get());
         const size_t workspace_size = asm_gemm->get_working_size();
         if(workspace_size)
         {
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE( "workspace_size=" << workspace_size );
+            
             // Allocate workspace
             const unsigned int alignment = 4096;
             allocate_workspace(workspace_size, workspace, &memory_group, alignment, num_threads);
@@ -190,6 +197,7 @@ inline bool setup_assembly_kernel(const ITensor *a, const ITensor *b, ITensor *d
         //the shapes are In=1x1x1024 Weights=1x1x1024x1001 Biases=1001 Out=1x1x1001
         {
             const unsigned int window_size = asm_gemm->get_window_size();
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE( "window_size=" << window_size << ", num_threads=" << num_threads );
             if(window_size < num_threads)
             {
                 num_threads = window_size;
@@ -200,6 +208,8 @@ inline bool setup_assembly_kernel(const ITensor *a, const ITensor *b, ITensor *d
         // Check for pre-transposed support
         if(asm_gemm->B_pretranspose_required())
         {
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE( "Forcing 128-byte alignment" );
+            
             // Forcing 128-byte alignment (required by 32-bit kernels)
             const unsigned int alignment           = 128;
             const size_t       B_pretranspose_size = asm_gemm->get_B_pretransposed_array_size();

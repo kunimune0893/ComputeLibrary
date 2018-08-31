@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+#include "arm_compute/graph/Logger.h"
 #include "arm_compute/core/NEON/kernels/NEGEMMMatrixMultiplyKernel.h"
 
 #include "arm_compute/core/AccessWindowStatic.h"
@@ -212,6 +213,9 @@ void vector_matrix_multiply_f32(const ITensor *input0, const ITensor *input1, IT
     // Make sure (window_end_x - window_start_x) is a multiple of window_step_x
     const int window_end_x = ceil_to_multiple(width_matrix_b - window_start_x, window_step_x) + window_start_x;
 
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "vector_matrix_multiply_f32(): width_matrix_b=" << width_matrix_b << ", in_b_stride=" << in_b_stride << ", num_elems_vec_a=" << num_elems_vec_a );
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "vector_matrix_multiply_f32(): window_start_x=" << window_start_x << ", window_step_x=" << window_step_x << ", window_end_x=" << window_end_x );
+    
     Window win_out(window);
     win_out.set(Window::DimX, Window::Dimension(window_start_x, window_end_x, window_step_x));
     win_out.set(Window::DimY, Window::Dimension(0, 1, 1));
@@ -225,6 +229,7 @@ void vector_matrix_multiply_f32(const ITensor *input0, const ITensor *input1, IT
     // This scenario can happen when the the matrix multiplication is used to perform a convolution operation
     if(input1->info()->num_dimensions() >= 3)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "vector_matrix_multiply_f32(): input1->info()->num_dimensions()=" << input1->info()->num_dimensions() );
         win_b = window;
     }
     win_b.set(Window::DimX, Window::Dimension(window_start_x, window_end_x, window_step_x));
@@ -236,12 +241,13 @@ void vector_matrix_multiply_f32(const ITensor *input0, const ITensor *input1, IT
 
     execute_window_loop(win_out, [&](const Coordinates & id)
     {
+        //ARM_COMPUTE_LOG_GRAPH_VERBOSE( "id.x()=" << id.x() );//=> 0, 16, 32, 48, ... , 992, 1008
         if(id.x() > width_matrix_b)
         {
             return;
         }
 
-        float32x4_t acc0 = vdupq_n_f32(0.f);
+        float32x4_t acc0 = vdupq_n_f32(0.f);// 全てのレーンに同じ値を設定
         float32x4_t acc1 = vdupq_n_f32(0.f);
         float32x4_t acc2 = vdupq_n_f32(0.f);
         float32x4_t acc3 = vdupq_n_f32(0.f);
@@ -250,24 +256,25 @@ void vector_matrix_multiply_f32(const ITensor *input0, const ITensor *input1, IT
         auto matrix_b = reinterpret_cast<const float *>(inb.ptr());
 
 #if __arm__
+        //ARM_COMPUTE_LOG_GRAPH_VERBOSE( "__arm__=" << __arm__ );
         asm volatile("PLD [%0, #128*4]" ::"r"(reinterpret_cast<const uint8_t *>(vec_a)));
         asm volatile("PLD [%0, #128*4]" ::"r"(reinterpret_cast<const uint8_t *>(matrix_b)));
         asm volatile("PLD [%0, #128*4]" ::"r"(reinterpret_cast<const uint8_t *>(matrix_b + in_b_stride)));
 #endif /* __arm__ */
 
-        auto vec_a_end_addr = vec_a + num_elems_vec_a;
+        auto vec_a_end_addr = vec_a + num_elems_vec_a/*1024*/;
         for(; vec_a <= (vec_a_end_addr - 4);)
         {
-            float32x2_t a0l = vld1_f32(vec_a);
+            float32x2_t a0l = vld1_f32(vec_a);// 入力データから2要素取得
 
-            float32x4_t b00 = vld1q_f32(matrix_b + 0 + 0 * in_b_stride);
-            float32x4_t b01 = vld1q_f32(matrix_b + 4 + 0 * in_b_stride);
-            float32x4_t b02 = vld1q_f32(matrix_b + 8 + 0 * in_b_stride);
+            float32x4_t b00 = vld1q_f32(matrix_b +  0 + 0 * in_b_stride);// 重みから4要素取得
+            float32x4_t b01 = vld1q_f32(matrix_b +  4 + 0 * in_b_stride);
+            float32x4_t b02 = vld1q_f32(matrix_b +  8 + 0 * in_b_stride);
             float32x4_t b03 = vld1q_f32(matrix_b + 12 + 0 * in_b_stride);
 
-            float32x4_t b10 = vld1q_f32(matrix_b + 0 + 1 * in_b_stride);
-            float32x4_t b11 = vld1q_f32(matrix_b + 4 + 1 * in_b_stride);
-            float32x4_t b12 = vld1q_f32(matrix_b + 8 + 1 * in_b_stride);
+            float32x4_t b10 = vld1q_f32(matrix_b +  0 + 1 * in_b_stride);
+            float32x4_t b11 = vld1q_f32(matrix_b +  4 + 1 * in_b_stride);
+            float32x4_t b12 = vld1q_f32(matrix_b +  8 + 1 * in_b_stride);
             float32x4_t b13 = vld1q_f32(matrix_b + 12 + 1 * in_b_stride);
 
 #if __arm__
@@ -278,29 +285,29 @@ void vector_matrix_multiply_f32(const ITensor *input0, const ITensor *input1, IT
             asm volatile("PLD [%0, #128*1]" ::"r"(reinterpret_cast<const uint8_t *>(matrix_b + 4 * in_b_stride)));
 #endif /* __arm__ */
 
-            acc0 = vmlaq_lane_f32(acc0, b00, a0l, 0);
+            acc0 = vmlaq_lane_f32(acc0, b00, a0l, 0);// acc0 + b00 * a0l[0]
             acc1 = vmlaq_lane_f32(acc1, b01, a0l, 0);
             acc2 = vmlaq_lane_f32(acc2, b02, a0l, 0);
             acc3 = vmlaq_lane_f32(acc3, b03, a0l, 0);
 
-            acc0 = vmlaq_lane_f32(acc0, b10, a0l, 1);
+            acc0 = vmlaq_lane_f32(acc0, b10, a0l, 1);// acc0 + b01 * a0l[1]
             acc1 = vmlaq_lane_f32(acc1, b11, a0l, 1);
             acc2 = vmlaq_lane_f32(acc2, b12, a0l, 1);
             acc3 = vmlaq_lane_f32(acc3, b13, a0l, 1);
 
-            vec_a += 2;
-            matrix_b += 2 * in_b_stride;
+            vec_a    += 2;              // 次の2要素へ
+            matrix_b += 2 * in_b_stride;// 次の2行へ
 
             a0l = vld1_f32(vec_a);
 
-            b00 = vld1q_f32(matrix_b + 0 + 0 * in_b_stride);
-            b01 = vld1q_f32(matrix_b + 4 + 0 * in_b_stride);
-            b02 = vld1q_f32(matrix_b + 8 + 0 * in_b_stride);
+            b00 = vld1q_f32(matrix_b +  0 + 0 * in_b_stride);
+            b01 = vld1q_f32(matrix_b +  4 + 0 * in_b_stride);
+            b02 = vld1q_f32(matrix_b +  8 + 0 * in_b_stride);
             b03 = vld1q_f32(matrix_b + 12 + 0 * in_b_stride);
 
-            b10 = vld1q_f32(matrix_b + 0 + 1 * in_b_stride);
-            b11 = vld1q_f32(matrix_b + 4 + 1 * in_b_stride);
-            b12 = vld1q_f32(matrix_b + 8 + 1 * in_b_stride);
+            b10 = vld1q_f32(matrix_b +  0 + 1 * in_b_stride);
+            b11 = vld1q_f32(matrix_b +  4 + 1 * in_b_stride);
+            b12 = vld1q_f32(matrix_b +  8 + 1 * in_b_stride);
             b13 = vld1q_f32(matrix_b + 12 + 1 * in_b_stride);
 
             acc0 = vmlaq_lane_f32(acc0, b00, a0l, 0);
@@ -313,17 +320,18 @@ void vector_matrix_multiply_f32(const ITensor *input0, const ITensor *input1, IT
             acc2 = vmlaq_lane_f32(acc2, b12, a0l, 1);
             acc3 = vmlaq_lane_f32(acc3, b13, a0l, 1);
 
-            vec_a += 2;
-            matrix_b += 2 * in_b_stride;
+            vec_a    += 2;              // 次の2要素へ
+            matrix_b += 2 * in_b_stride;// 次の2行へ
         }
 
         for(; vec_a < vec_a_end_addr;)
         {
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE( "vec_a=" << vec_a << ", vec_a_end_addr=" << vec_a_end_addr );// 通らない
             const float a0 = *vec_a;
 
-            const float32x4_t b00 = vld1q_f32(matrix_b + 0 + 0 * in_b_stride);
-            const float32x4_t b01 = vld1q_f32(matrix_b + 4 + 0 * in_b_stride);
-            const float32x4_t b02 = vld1q_f32(matrix_b + 8 + 0 * in_b_stride);
+            const float32x4_t b00 = vld1q_f32(matrix_b +  0 + 0 * in_b_stride);
+            const float32x4_t b01 = vld1q_f32(matrix_b +  4 + 0 * in_b_stride);
+            const float32x4_t b02 = vld1q_f32(matrix_b +  8 + 0 * in_b_stride);
             const float32x4_t b03 = vld1q_f32(matrix_b + 12 + 0 * in_b_stride);
 
             acc0 = vmlaq_n_f32(acc0, b00, a0);
@@ -331,13 +339,14 @@ void vector_matrix_multiply_f32(const ITensor *input0, const ITensor *input1, IT
             acc2 = vmlaq_n_f32(acc2, b02, a0);
             acc3 = vmlaq_n_f32(acc3, b03, a0);
 
-            vec_a += 1;
+            vec_a    += 1;
             matrix_b += in_b_stride;
         }
 
         // Multiply by the weight of matrix product (alpha)
         if(multiply_alpha)
         {
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE( "multiply_alpha=" << multiply_alpha );// 通らない
             const float32x4_t alpha_f32 = vdupq_n_f32(alpha);
             acc0                        = vmulq_f32(acc0, alpha_f32);
             acc1                        = vmulq_f32(acc1, alpha_f32);
@@ -347,9 +356,9 @@ void vector_matrix_multiply_f32(const ITensor *input0, const ITensor *input1, IT
 
         const auto vec_out = reinterpret_cast<float *>(out.ptr());
 
-        vst1q_f32(vec_out + 0, acc0);
-        vst1q_f32(vec_out + 4, acc1);
-        vst1q_f32(vec_out + 8, acc2);
+        vst1q_f32(vec_out +  0, acc0);// 16列の結果を保存
+        vst1q_f32(vec_out +  4, acc1);
+        vst1q_f32(vec_out +  8, acc2);
         vst1q_f32(vec_out + 12, acc3);
     },
     ina, inb, out);
@@ -1634,8 +1643,9 @@ void NEGEMMMatrixMultiplyKernel::run(const Window &window, const ThreadInfo &inf
         {
             case DataType::F32:
             {
-                multiply_alpha ? vector_matrix_multiply_f32<true>(_input0, _input1, _output, window, info, _alpha) :
-                vector_matrix_multiply_f32<false>(_input0, _input1, _output, window, info, _alpha);
+                ARM_COMPUTE_LOG_GRAPH_VERBOSE( "(_output->info()->dimension(1) == 1): multiply_alpha=" << multiply_alpha );
+                multiply_alpha ? vector_matrix_multiply_f32<true>( _input0, _input1, _output, window, info, _alpha) :
+                                 vector_matrix_multiply_f32<false>(_input0, _input1, _output, window, info, _alpha);
                 break;
             }
             case DataType::QS8:
@@ -1671,8 +1681,9 @@ void NEGEMMMatrixMultiplyKernel::run(const Window &window, const ThreadInfo &inf
         {
             case DataType::F32:
             {
-                multiply_alpha ? matrix_matrix_multiply_f32<true>(_input0, _input1, _output, window, _alpha) :
-                matrix_matrix_multiply_f32<false>(_input0, _input1, _output, window, _alpha);
+                ARM_COMPUTE_LOG_GRAPH_VERBOSE( "!(_output->info()->dimension(1) == 1): multiply_alpha=" << multiply_alpha );
+                multiply_alpha ? matrix_matrix_multiply_f32<true>( _input0, _input1, _output, window, _alpha) :
+                                 matrix_matrix_multiply_f32<false>(_input0, _input1, _output, window, _alpha);
                 break;
             }
             case DataType::QS8:

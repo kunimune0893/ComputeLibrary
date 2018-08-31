@@ -25,6 +25,7 @@
 
 #include <arm_neon.h>
 
+#include "arm_compute/graph/Logger.h"
 #include "../../asmlib.hpp"
 
 // Kernel implementation.
@@ -44,6 +45,7 @@ void a32_sgemm_8x6_a53(const float *Apanel, const float *Bpanel, float *Cpanel, 
     const float *a_ptr = Apanel;
     float       *c_ptr = Cpanel;
 
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE("a32_sgemm_8x6_a53()");
     for(int yb = 0; yb < ablocks; yb++)
     {
         const float *a_ptr0 = a_ptr;

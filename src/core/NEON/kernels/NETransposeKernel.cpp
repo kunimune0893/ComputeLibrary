@@ -537,5 +537,9 @@ void NETransposeKernel::run(const Window &window, const ThreadInfo &info)
     ARM_COMPUTE_ERROR_ON_INVALID_SUBWINDOW(INEKernel::window(), window);
     ARM_COMPUTE_ERROR_ON(_func == nullptr);
 
+    //std::cout << "before dump" << std::endl;
+    //_input->print( std::cout );
+    //std::cout << "after dump" << std::endl;
+
     (*_func)(_input, _output, window);
 }

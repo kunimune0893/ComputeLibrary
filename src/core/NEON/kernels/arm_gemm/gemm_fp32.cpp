@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+#include "arm_compute/graph/Logger.h"
 #include "arm_gemm.hpp"
 #include "gemm_batched.hpp"
 #include "gemm_common.hpp"
@@ -43,9 +44,12 @@ UniqueGemmCommon<float, float> gemm<float, float>(const CPUInfo &ci, const unsig
                                                   const bool trA, const bool trB, const float alpha, const float beta,
                                                   const int maxthreads, const bool pretransposed_hint)
 {
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "UniqueGemmCommon<float, float> gemm<float, float>()" );
+    
     /* Handle "batched GEMM" */
     if(M == 1 && nbatches > 1)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "UniqueGemmCommon<float, float> gemm<float, float>(): GemmBatched<float, float>" );
         return UniqueGemmCommon<float, float>(new GemmBatched<float, float>(ci, M, N, K, nbatches, nmulti, trA, trB, alpha, beta, maxthreads, pretransposed_hint));
     }
 #ifdef __aarch64__
@@ -53,12 +57,14 @@ UniqueGemmCommon<float, float> gemm<float, float>(const CPUInfo &ci, const unsig
     /* GemvPretransposed: requires M=1, alpha=1, and transposed hint set.  nbatches must be 1 or we would have returned above so don't test. */
     if(M == 1 && alpha == 1.0f && pretransposed_hint)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "UniqueGemmCommon<float, float> gemm<float, float>(): GemvPretransposed<sgemv_pretransposed, float, float>" );
         return UniqueGemmCommon<float, float>(new GemvPretransposed<sgemv_pretransposed, float, float>(&ci, N, K, nmulti, trB, beta));
     }
 
     /* GemvNativeTransposed: requires M=1, no trA or trB, doesn't handle alpha */
     if(M == 1 && alpha == 1.0f && !trA && !trB)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "UniqueGemmCommon<float, float> gemm<float, float>(): GemvNativeTransposed<sgemv_trans, float, float>" );
         return UniqueGemmCommon<float, float>(new GemvNativeTransposed<sgemv_trans, float, float>(&ci, N, K, nmulti, beta));
     }
 
@@ -67,12 +73,15 @@ UniqueGemmCommon<float, float> gemm<float, float>(const CPUInfo &ci, const unsig
      * sizes.  */
     if(N <= 128 && K <= 128 && ((M % 4) == 0) && (K >= 4) && ((N % 16) == 0) && alpha == 1.0f)
     {
+        ARM_COMPUTE_LOG_GRAPH_VERBOSE( "UniqueGemmCommon<float, float> gemm<float, float>(): GemmNative<sgemm_native_16x4, float, float>" );
         return UniqueGemmCommon<float, float>(new GemmNative<sgemm_native_16x4, float, float>(&ci, M, N, K, nbatches, nmulti, beta));
     }
 
     /* Blocked GEMM, handles all cases. */
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "UniqueGemmCommon<float, float> gemm<float, float>(): GemmInterleaved<sgemm_12x8, float, float>" );
     return UniqueGemmCommon<float, float>(new GemmInterleaved<sgemm_12x8, float, float>(&ci, M, N, K, nbatches, nmulti, trA, trB, alpha, beta, maxthreads, pretransposed_hint));
 #else
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "UniqueGemmCommon<float, float> gemm<float, float>(): GemmInterleaved<sgemm_8x6, float, float>" );
     return UniqueGemmCommon<float, float>(new GemmInterleaved<sgemm_8x6, float, float>(&ci, M, N, K, nbatches, nmulti, trA, trB, alpha, beta, maxthreads, pretransposed_hint));
 #endif
 }

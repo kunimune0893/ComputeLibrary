@@ -123,6 +123,8 @@ ConvolutionMethod NEConvolutionLayer::get_convolution_method(const ITensorInfo *
 
 void NEConvolutionLayer::run()
 {
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "before NEConvolutionLayer::run()");
     _function->run();
+    ARM_COMPUTE_LOG_GRAPH_VERBOSE( "after NEConvolutionLayer::run()");
 }
 } // namespace arm_compute

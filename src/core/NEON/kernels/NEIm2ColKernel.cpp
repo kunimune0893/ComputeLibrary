@@ -305,6 +305,10 @@ void NEIm2ColKernel::run_reduced(const Window &window)
     const size_t out_step_y = out_step_x * in_height;
     const size_t out_width  = _output->info()->dimension(0);
 
+    //std::cout << "before dump" << std::endl;
+    //_input->print( std::cout );
+    //std::cout << "after dump" << std::endl;
+
     Window in_window(window);
     in_window.set(Window::DimX, Window::Dimension(0, 1, 1));
 

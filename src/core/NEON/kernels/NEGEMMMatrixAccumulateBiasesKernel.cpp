@@ -193,7 +193,7 @@ void NEGEMMMatrixAccumulateBiasesKernel::run(const Window &window, const ThreadI
             break;
     }
     
-    std::cout << "before dump" << std::endl;
-    _accum->print( std::cout );
-    std::cout << "after dump" << std::endl;
+    //std::cout << "before dump" << std::endl;
+    //_accum->print( std::cout );
+    //std::cout << "after dump" << std::endl;
 }
