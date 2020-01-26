@@ -1,0 +1,11 @@
+--jcode=utf8
+--exclude=.git
+--exclude=.github
+--exclude=build
+--exclude=data
+--exclude=docs
+--exclude=documentation
+--exclude=opencl-1.2-stubs
+--exclude=opengles-3.1-stubs
+--exclude=scripts
+--exclude=tests
