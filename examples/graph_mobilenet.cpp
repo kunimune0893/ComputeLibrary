@@ -27,10 +27,14 @@
 #include "utils/GraphUtils.h"
 #include "utils/Utils.h"
 
+#include "arm_compute/core/utils/logging/LoggerRegistry.h"
+#include "arm_compute/core/utils/logging/Types.h"
+
 using namespace arm_compute;
 using namespace arm_compute::utils;
 using namespace arm_compute::graph::frontend;
 using namespace arm_compute::graph_utils;
+using namespace arm_compute::logging;
 
 /** Example demonstrating how to implement MobileNet's network using the Compute Library's graph API */
 class GraphMobilenetExample : public Example
@@ -76,6 +80,50 @@ public:
         // Create input descriptor
         const TensorShape tensor_shape     = permute_shape(TensorShape(spatial_size, spatial_size, 3U, 1U), DataLayout::NCHW, common_params.data_layout);
         TensorDescriptor  input_descriptor = TensorDescriptor(tensor_shape, common_params.data_type).set_layout(common_params.data_layout);
+
+        // loglevel set
+        std::cout << "LogLevel = " << string_from_log_level(LogLevel::VERBOSE) << std::endl;
+        
+#if 0
+        // 18.05時に使用していた設定、GRAPHのロガーを使って表示させていた
+        // しかし、これを使うと大量のGRAPHのログが出てしまう、新規にロガーを作れないか？
+        ARM_COMPUTE_CREATE_DEFAULT_GRAPH_LOGGER();
+        auto __logger = arm_compute::logging::LoggerRegistry::get().logger( "GRAPH" );
+        if(__logger != nullptr)
+        {
+            std::cout << "LogLevel = " << string_from_log_level(__logger->log_level()) << std::endl;
+            __logger->set_log_level( LogLevel::VERBOSE );
+            ARM_COMPUTE_LOG_GRAPH_VERBOSE( "VERBOSE\n" );
+        }
+#endif
+        
+        // LoggerRegistry.cpp に _reserved_loggers が定義されており、ここに追加すればロガーが追加できそう → "TMP" を追加してみる
+        // _reserved_loggers を有効にするマクロを呼び出す (GRAPH でなくても、CORE、RUNTIME にも同じマクロが用意されている)
+        ARM_COMPUTE_CREATE_DEFAULT_GRAPH_LOGGER();
+        
+        // ハンドル取得
+        auto __logger = arm_compute::logging::LoggerRegistry::get().logger( "TMP" );
+        if(__logger != nullptr)
+        {
+            std::cout << "TMP LogLevel = " << string_from_log_level(__logger->log_level()) << std::endl;    // 現在のログレベル表示
+            __logger->set_log_level( LogLevel::VERBOSE );                                                   // ログレベル変更
+            std::cout << "TMP LogLevel = " << string_from_log_level(__logger->log_level()) << std::endl;    // 現在のログレベル表示
+        }
+        
+        // だいたい思う通りになったが、GRAPH だけ INFO 以上のログが表示される (おそらくフルコンパイルをすれば出ないかも。。)
+        // ためしに、ログが出てるファイルの .o を削除してみる → 結果は変わらず、、、そういえば、最初から大量のログが出てたな。。
+        // ログレベルを WARN にあげてみる → 表示されてたのログはINFOばかりだったので、ログが出なくなった
+        auto __logger_ = arm_compute::logging::LoggerRegistry::get().logger( "GRAPH" );
+        if(__logger_ != nullptr)
+        {
+            std::cout << "GRAPH LogLevel = " << string_from_log_level(__logger_->log_level()) << std::endl;
+//          __logger_->set_log_level( LogLevel::WARN );
+//          __logger_->set_log_level( LogLevel::VERBOSE );
+            __logger_->set_log_level( LogLevel::INFO );
+            std::cout << "GRAPH LogLevel = " << string_from_log_level(__logger_->log_level()) << std::endl;
+        }
+        
+        ARM_COMPUTE_LOG_STREAM("TMP", arm_compute::logging::LogLevel::VERBOSE, "VERBOSE");// ひとまず、マクロの実装をそのまま記述
 
         // Set graph hints
         graph << common_params.target

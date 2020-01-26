@@ -212,6 +212,7 @@ std::unique_ptr<IFunction> create_fused_convolution_batch_normalization_layer(Fu
                                     std::string("FusedConvolutionBatchNormalizationLayer"), mm, input, weights, biases, output, mean, var, beta, gamma, epsilon, conv_info, num_groups, fast_math, fused_act);
 
     // Log info
+    ARM_COMPUTE_LOG_GRAPH_INFO("dk: create_fused_convolution_batch_normalization_layer(): " << func_name);
     ARM_COMPUTE_LOG_GRAPH_INFO("Instantiated "
                                << node.name()
                                << " Type: " << node.type()
